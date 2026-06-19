@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>AI Health Assistant</title>
+
+    <style>
+        body {
+            margin: 0;
+            font-family: Arial;
+            background: #0b1220;
+            height: 100vh;
+            display: flex;
+        }
+
+        /* LEFT CHAT */
+        .chat {
+            flex: 2;
+            display: flex;
+            flex-direction: column;
+            background: #111827;
+        }
+
+        .header {
+            padding: 15px;
+            background: #1f2937;
+            color: white;
+            text-align: center;
+            font-weight: bold;
+        }
+
+        #chatBox {
+            flex: 1;
+            padding: 10px;
+            overflow-y: auto;
+        }
+
+        .msg {
+            padding: 10px;
+            margin: 8px;
+            border-radius: 10px;
+            max-width: 80%;
+        }
+
+        .user {
+            background: #2563eb;
+            color: white;
+            margin-left: auto;
+        }
+
+        .ai {
+            background: #374151;
+            color: white;
+            margin-right: auto;
+        }
+
+        .inputBox {
+            display: flex;
+            padding: 10px;
+            background: #1f2937;
+        }
+
+        input {
+            flex: 1;
+            padding: 10px;
+            border: none;
+            border-radius: 8px;
+            outline: none;
+        }
+
+        button {
+            margin-left: 8px;
+            padding: 10px 14px;
+            border: none;
+            background: #22c55e;
+            color: white;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background: #16a34a;
+        }
+
+        /* HISTORY */
+        .history {
+            flex: 1;
+            background: #0f172a;
+            border-left: 1px solid #1f2937;
+            padding: 10px;
+            overflow-y: auto;
+        }
+
+        .history h3 {
+            color: white;
+            text-align: center;
+        }
+
+        .hist-item {
+            background: #1f2937;
+            padding: 8px;
+            margin: 6px 0;
+            border-radius: 8px;
+            color: white;
+            font-size: 12px;
+        }
+
+        .small {
+            color: #9ca3af;
+            font-size: 11px;
+        }
+    </style>
+</head>
+
+<body>
+
+<!-- CHAT -->
+<div class="chat">
+    <div class="header">🩺 AI Health Assistant</div>
+
+    <div id="chatBox"></div>
+
+    <div class="inputBox">
+        <input id="msg" placeholder="Ask something..." />
+
+        <!-- 🎤 VOICE -->
+        <button onclick="startVoice()">🎤</button>
+
+        <button onclick="sendMsg()">Send</button>
+    </div>
+</div>
+
+<!-- HISTORY -->
+<div class="history">
+    <h3>📜 History</h3>
+    <div id="historyBox"></div>
+</div>
+
+<script>
+const chatBox = document.getElementById("chatBox");
+const historyBox = document.getElementById("historyBox");
+const msg = document.getElementById("msg");
+
+// ---------- CHAT ----------
+function addChat(text, type) {
+    const div = document.createElement("div");
+    div.classList.add("msg", type);
+    div.innerText = text;
+    chatBox.appendChild(div);
+    chatBox.scrollTop = chatBox.scrollHeight;
+}
+
+// ---------- HISTORY ----------
+function addHistory(item) {
+    const div = document.createElement("div");
+    div.classList.add("hist-item");
+    div.innerHTML = `
+        <div><b>You:</b> ${item.user_message}</div>
+        <div class="small"><b>AI:</b> ${item.ai_response}</div>
+    `;
+    historyBox.appendChild(div);
+}
+
+// ---------- LOAD HISTORY ----------
+async function loadHistory() {
+    let res = await fetch("http://127.0.0.1:8000/history");
+    let data = await res.json();
+
+    historyBox.innerHTML = "";
+
+    data.history.reverse().forEach(item => {
+        addHistory(item);
+    });
+}
+
+// ---------- SEND MESSAGE ----------
+async function sendMsg() {
+    let text = msg.value;
+    if (!text) return;
+
+    addChat(text, "user");
+    msg.value = "";
+
+    let res = await fetch("http://127.0.0.1:8000/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: text })
+    });
+
+    let data = await res.json();
+
+    addChat(data.response, "ai");
+
+    loadHistory();
+}
+
+// ---------- ENTER KEY ----------
+msg.addEventListener("keypress", function(e){
+    if(e.key === "Enter") sendMsg();
+});
+
+// ---------- 🎤 VOICE INPUT (FIXED + AUTO SEND) ----------
+function startVoice() {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+    if (!SpeechRecognition) {
+        alert("Voice input not supported. Use Chrome.");
+        return;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.lang = "en-US";
+    recognition.interimResults = false;
+
+    recognition.start();
+
+    recognition.onstart = function () {
+        console.log("Listening...");
+    };
+
+    recognition.onresult = function (event) {
+        const text = event.results[0][0].transcript;
+
+        msg.value = text;
+
+        // 🔥 AUTO SEND AFTER SPEECH
+        sendMsg();
+    };
+
+    recognition.onerror = function (err) {
+        console.log("Voice error:", err);
+    };
+}
+
+// ---------- INIT ----------
+loadHistory();
+</script>
+
+</body>
+</html>
